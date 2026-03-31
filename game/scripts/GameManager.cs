@@ -1,11 +1,19 @@
+using System;
 using Godot;
 
 public partial class GameManager : Node
 {
     private const float MoveDeadzone = 0.25f;
     private Node? _currentScreen;
-    private TeamDefinition _lastHomeTeam = PocketPitchConfig.DefaultHomeTeam.Clone();
-    private TeamDefinition _lastAwayTeam = PocketPitchConfig.AwayPresets[0].Clone();
+    private MatchSettings _lastQuickMatchSettings = new(
+        NationalTeamDatabase.GetByName("Brazil").Team,
+        NationalTeamDatabase.GetByName("Italy").Team,
+        true,
+        false,
+        "Rematch",
+        "Return to Menu",
+        "Quick Match");
+    private WorldCupTournament? _activeWorldCup;
 
     public override void _Ready()
     {
@@ -16,22 +24,22 @@ public partial class GameManager : Node
     private void EnsureInputBindings()
     {
         ResetAction("move_up");
-        AddKeys("move_up", Key.Up, Key.W);
+        AddKeys("move_up", Key.Up);
         AddJoyButtons("move_up", 11);
         AddJoyAxis("move_up", 1, -1f);
 
         ResetAction("move_down");
-        AddKeys("move_down", Key.Down, Key.S);
+        AddKeys("move_down", Key.Down);
         AddJoyButtons("move_down", 12);
         AddJoyAxis("move_down", 1, 1f);
 
         ResetAction("move_left");
-        AddKeys("move_left", Key.Left, Key.A);
+        AddKeys("move_left", Key.Left);
         AddJoyButtons("move_left", 13);
         AddJoyAxis("move_left", 0, -1f);
 
         ResetAction("move_right");
-        AddKeys("move_right", Key.Right, Key.D);
+        AddKeys("move_right", Key.Right);
         AddJoyButtons("move_right", 14);
         AddJoyAxis("move_right", 0, 1f);
 
@@ -46,6 +54,24 @@ public partial class GameManager : Node
         ResetAction("pause");
         AddKeys("pause", Key.Enter, Key.Escape);
         AddJoyButtons("pause", 6);
+
+        ResetAction("p2_move_up");
+        AddKeys("p2_move_up", Key.W);
+
+        ResetAction("p2_move_down");
+        AddKeys("p2_move_down", Key.S);
+
+        ResetAction("p2_move_left");
+        AddKeys("p2_move_left", Key.A);
+
+        ResetAction("p2_move_right");
+        AddKeys("p2_move_right", Key.D);
+
+        ResetAction("p2_action_a");
+        AddKeys("p2_action_a", Key.F);
+
+        ResetAction("p2_action_b");
+        AddKeys("p2_action_b", Key.G);
     }
 
     private static void ResetAction(string actionName)
@@ -121,32 +147,97 @@ public partial class GameManager : Node
     {
         var scene = GD.Load<PackedScene>("res://scenes/MainMenu.tscn");
         var menu = scene.Instantiate<MainMenuController>();
-        menu.StartRequested += ShowTeamSelect;
+        menu.QuickMatchRequested += ShowQuickMatchSetup;
+        menu.WorldCupRequested += ShowWorldCupSetup;
         menu.QuitRequested += HandleQuitRequested;
         SetScreen(menu);
     }
 
-    private void ShowTeamSelect()
+    private void ShowQuickMatchSetup()
     {
-        var scene = GD.Load<PackedScene>("res://scenes/TeamSelect.tscn");
-        var teamSelect = scene.Instantiate<TeamSelectController>();
-        teamSelect.Configure(_lastHomeTeam.Clone(), _lastAwayTeam.Clone());
-        teamSelect.BackRequested += ShowMainMenu;
-        teamSelect.MatchRequested += StartMatch;
-        SetScreen(teamSelect);
+        var scene = GD.Load<PackedScene>("res://scenes/QuickMatch.tscn");
+        var quickMatch = scene.Instantiate<QuickMatchController>();
+        quickMatch.BackRequested += ShowMainMenu;
+        quickMatch.MatchRequested += StartQuickMatch;
+        SetScreen(quickMatch);
     }
 
-    private void StartMatch(TeamDefinition homeTeam, TeamDefinition awayTeam)
+    private void ShowWorldCupSetup()
     {
-        _lastHomeTeam = homeTeam.Clone();
-        _lastAwayTeam = awayTeam.Clone();
+        var scene = GD.Load<PackedScene>("res://scenes/WorldCupSetup.tscn");
+        var setup = scene.Instantiate<WorldCupSetupController>();
+        setup.BackRequested += ShowMainMenu;
+        setup.StartRequested += StartWorldCup;
+        SetScreen(setup);
+    }
 
+    private void StartQuickMatch(MatchSettings settings)
+    {
+        _lastQuickMatchSettings = settings;
+        StartMatch(settings, OnQuickMatchPrimaryAction);
+    }
+
+    private void StartWorldCup(string playerTeamName)
+    {
+        _activeWorldCup = new WorldCupTournament(playerTeamName);
+        ShowWorldCupHub();
+    }
+
+    private void ShowWorldCupHub()
+    {
+        if (_activeWorldCup == null)
+        {
+            ShowMainMenu();
+            return;
+        }
+
+        var scene = GD.Load<PackedScene>("res://scenes/WorldCupHub.tscn");
+        var hub = scene.Instantiate<WorldCupHubController>();
+        hub.BackRequested += ShowMainMenu;
+        hub.PlayMatchRequested += StartWorldCupMatch;
+        SetScreen(hub);
+        hub.Configure(_activeWorldCup);
+    }
+
+    private void StartWorldCupMatch()
+    {
+        if (_activeWorldCup == null || !_activeWorldCup.HasPlayableMatch)
+        {
+            ShowWorldCupHub();
+            return;
+        }
+
+        StartMatch(_activeWorldCup.CreateNextMatchSettings(), OnWorldCupPrimaryAction);
+    }
+
+    private void StartMatch(MatchSettings settings, Action<MatchResult>? primaryAction)
+    {
         var scene = GD.Load<PackedScene>("res://scenes/Match.tscn");
         var match = scene.Instantiate<MatchManager>();
-        match.Configure(_lastHomeTeam.Clone(), _lastAwayTeam.Clone());
+        match.Configure(settings);
         match.ReturnToMenuRequested += ShowMainMenu;
-        match.RematchRequested += () => StartMatch(_lastHomeTeam.Clone(), _lastAwayTeam.Clone());
+        if (primaryAction != null)
+        {
+            match.MatchCompleted += primaryAction;
+        }
         SetScreen(match);
+    }
+
+    private void OnQuickMatchPrimaryAction(MatchResult _)
+    {
+        StartQuickMatch(_lastQuickMatchSettings);
+    }
+
+    private void OnWorldCupPrimaryAction(MatchResult result)
+    {
+        if (_activeWorldCup == null)
+        {
+            ShowMainMenu();
+            return;
+        }
+
+        _activeWorldCup.ApplyPlayedMatch(result);
+        ShowWorldCupHub();
     }
 
     private void HandleQuitRequested()

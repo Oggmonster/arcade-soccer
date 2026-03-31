@@ -3,7 +3,7 @@ using Godot;
 
 public partial class HUDController : CanvasLayer
 {
-    public event Action? RematchRequested;
+    public event Action? PrimaryActionRequested;
     public event Action? MenuRequested;
 
     private Label? _scoreLabel;
@@ -12,6 +12,8 @@ public partial class HUDController : CanvasLayer
     private ProgressBar? _chargeBar;
     private PanelContainer? _fullTimePanel;
     private Label? _fullTimeLabel;
+    private Button? _primaryButton;
+    private Button? _menuButton;
 
     public override void _Ready()
     {
@@ -21,9 +23,11 @@ public partial class HUDController : CanvasLayer
         _chargeBar = GetNode<ProgressBar>("%ShotChargeBar");
         _fullTimePanel = GetNode<PanelContainer>("%FullTimePanel");
         _fullTimeLabel = GetNode<Label>("%FullTimeLabel");
+        _primaryButton = GetNode<Button>("%RematchButton");
+        _menuButton = GetNode<Button>("%MenuButton");
 
-        GetNode<Button>("%RematchButton").Pressed += () => RematchRequested?.Invoke();
-        GetNode<Button>("%MenuButton").Pressed += () => MenuRequested?.Invoke();
+        _primaryButton.Pressed += () => PrimaryActionRequested?.Invoke();
+        _menuButton.Pressed += () => MenuRequested?.Invoke();
         HideFullTime();
     }
 
@@ -56,6 +60,12 @@ public partial class HUDController : CanvasLayer
     {
         _fullTimePanel!.Visible = true;
         _fullTimeLabel!.Text = summary;
+    }
+
+    public void ConfigureEndActions(string primaryLabel, string menuLabel)
+    {
+        _primaryButton!.Text = primaryLabel;
+        _menuButton!.Text = menuLabel;
     }
 
     public void HideFullTime()

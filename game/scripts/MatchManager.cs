@@ -7,7 +7,7 @@ public partial class MatchManager : Node2D
     private const float GoalkeeperClaimSpeedThreshold = 760f;
     private const float GoalkeeperPressureDistance = 84f;
     public event Action? ReturnToMenuRequested;
-    public event Action? RematchRequested;
+    public event Action<MatchResult>? MatchCompleted;
 
     private readonly RandomNumberGenerator _rng = new();
     private readonly List<PlayerController> _homePlayers = new();
@@ -22,9 +22,15 @@ public partial class MatchManager : Node2D
     private Node2D? _goalkeepersRoot;
     private GoalkeeperAI? _homeKeeper;
     private GoalkeeperAI? _awayKeeper;
-    private PlayerController? _controlledPlayer;
+    private PlayerController? _homeControlledPlayer;
+    private PlayerController? _awayControlledPlayer;
     private TeamDefinition _homeTeam = PocketPitchConfig.DefaultHomeTeam.Clone();
     private TeamDefinition _awayTeam = PocketPitchConfig.AwayPresets[0].Clone();
+    private MatchSettings _settings = new(
+        PocketPitchConfig.DefaultHomeTeam,
+        PocketPitchConfig.AwayPresets[0],
+        true,
+        false);
     private MatchPhase _phase = MatchPhase.PreKickoff;
     private MatchPhase _phaseBeforePause = MatchPhase.InPlay;
     private TeamSide _nextKickoffTeam = TeamSide.Home;
@@ -33,11 +39,13 @@ public partial class MatchManager : Node2D
     private float _statusTimer;
     private int _homeScore;
     private int _awayScore;
+    private MatchResult? _lastMatchResult;
 
-    public void Configure(TeamDefinition homeTeam, TeamDefinition awayTeam)
+    public void Configure(MatchSettings settings)
     {
-        _homeTeam = homeTeam.Clone();
-        _awayTeam = awayTeam.Clone();
+        _settings = settings;
+        _homeTeam = settings.HomeTeam.Clone();
+        _awayTeam = settings.AwayTeam.Clone();
     }
 
     public override void _Ready()
@@ -51,8 +59,15 @@ public partial class MatchManager : Node2D
         _playersRoot = GetNode<Node2D>("Players");
         _goalkeepersRoot = GetNode<Node2D>("Goalkeepers");
 
-        _hud.RematchRequested += () => RematchRequested?.Invoke();
+        _hud.PrimaryActionRequested += () =>
+        {
+            if (_lastMatchResult != null)
+            {
+                MatchCompleted?.Invoke(_lastMatchResult);
+            }
+        };
         _hud.MenuRequested += () => ReturnToMenuRequested?.Invoke();
+        _hud.ConfigureEndActions(_settings.PrimaryActionText, _settings.SecondaryActionText);
         BuildTeams();
         StartNewMatch();
     }
@@ -111,7 +126,7 @@ public partial class MatchManager : Node2D
             return;
         }
 
-        UpdateControlledPlayer();
+        UpdateControlledPlayers();
         HandleInput(delta);
         RunAi();
         SimulateActors(delta);
@@ -185,6 +200,7 @@ public partial class MatchManager : Node2D
     {
         _homeScore = 0;
         _awayScore = 0;
+        _lastMatchResult = null;
         _matchTimeRemaining = PocketPitchConfig.MatchLengthSeconds;
         _phase = MatchPhase.PreKickoff;
         _phaseBeforePause = MatchPhase.InPlay;
@@ -233,51 +249,39 @@ public partial class MatchManager : Node2D
 
         var kickoffPlayer = kickoffTeam == TeamSide.Home ? _homePlayers[4] : _awayPlayers[4];
         _ball!.AttachTo(kickoffPlayer);
-        UpdateControlledPlayer();
+        UpdateControlledPlayers();
         SetStatus(kickoffTeam == TeamSide.Home ? "Blue kick off" : "Orange kick off", PocketPitchConfig.KickoffDelaySeconds);
         UpdateHud();
     }
 
-    private void UpdateControlledPlayer()
+    private void UpdateControlledPlayers()
     {
-        if (_ball!.Carrier is PlayerController owner && owner.TeamSide == TeamSide.Home)
+        if (_settings.HomeHumanControlled)
         {
-            _controlledPlayer = owner;
+            _homeControlledPlayer = ResolveControlledPlayer(TeamSide.Home, _homePlayers);
         }
-        else
-        {
-            var closestDistance = float.MaxValue;
-            PlayerController? closest = null;
-            foreach (var player in _homePlayers)
-            {
-                var distance = player.GlobalPosition.DistanceSquaredTo(_ball.GlobalPosition);
-                if (distance < closestDistance)
-                {
-                    closestDistance = distance;
-                    closest = player;
-                }
-            }
 
-            _controlledPlayer = closest;
+        if (_settings.AwayHumanControlled)
+        {
+            _awayControlledPlayer = ResolveControlledPlayer(TeamSide.Away, _awayPlayers);
         }
 
         foreach (var player in _homePlayers)
         {
-            player.SetControlState(player == _controlledPlayer, _ball.Carrier == player);
+            player.SetControlState(_settings.HomeHumanControlled && player == _homeControlledPlayer, _ball!.Carrier == player);
         }
 
         foreach (var player in _awayPlayers)
         {
-            player.SetControlState(false, _ball.Carrier == player);
+            player.SetControlState(_settings.AwayHumanControlled && player == _awayControlledPlayer, _ball!.Carrier == player);
         }
     }
 
     private void HandleInput(double delta)
     {
-        var moveInput = ReadMoveInput();
         foreach (var player in _homePlayers)
         {
-            if (player != _controlledPlayer)
+            if (!_settings.HomeHumanControlled || player != _homeControlledPlayer)
             {
                 player.SetDesiredDirection(Vector2.Zero);
             }
@@ -285,39 +289,74 @@ public partial class MatchManager : Node2D
 
         foreach (var player in _awayPlayers)
         {
-            player.SetDesiredDirection(Vector2.Zero);
+            if (!_settings.AwayHumanControlled || player != _awayControlledPlayer)
+            {
+                player.SetDesiredDirection(Vector2.Zero);
+            }
         }
 
-        if (_controlledPlayer == null)
+        if (_settings.HomeHumanControlled && _homeControlledPlayer != null)
         {
-            return;
+            HandleHumanInput(TeamSide.Home, _homeControlledPlayer, ReadMoveInput(TeamSide.Home));
         }
 
-        var humanHasBall = _ball!.Carrier == _controlledPlayer;
-        _controlledPlayer.SetDesiredDirection(moveInput);
+        if (_settings.AwayHumanControlled && _awayControlledPlayer != null)
+        {
+            HandleHumanInput(TeamSide.Away, _awayControlledPlayer, ReadMoveInput(TeamSide.Away));
+        }
+    }
+
+    private PlayerController? ResolveControlledPlayer(TeamSide teamSide, List<PlayerController> teamPlayers)
+    {
+        if (_ball!.Carrier is PlayerController owner && owner.TeamSide == teamSide)
+        {
+            return owner;
+        }
+
+        var closestDistance = float.MaxValue;
+        PlayerController? closest = null;
+        foreach (var player in teamPlayers)
+        {
+            var distance = player.GlobalPosition.DistanceSquaredTo(_ball.GlobalPosition);
+            if (distance < closestDistance)
+            {
+                closestDistance = distance;
+                closest = player;
+            }
+        }
+
+        return closest;
+    }
+
+    private void HandleHumanInput(TeamSide teamSide, PlayerController controlledPlayer, Vector2 moveInput)
+    {
+        controlledPlayer.SetDesiredDirection(moveInput);
+        var humanHasBall = _ball!.Carrier == controlledPlayer;
+        var actionA = teamSide == TeamSide.Home ? "action_a" : "p2_action_a";
+        var actionB = teamSide == TeamSide.Home ? "action_b" : "p2_action_b";
 
         if (humanHasBall)
         {
-            if (Input.IsActionJustPressed("action_a"))
+            if (Input.IsActionJustPressed(actionA))
             {
-                AttemptPass(_controlledPlayer, false);
+                AttemptPass(controlledPlayer, false, moveInput);
             }
 
-            if (Input.IsActionJustPressed("action_b"))
+            if (Input.IsActionJustPressed(actionB))
             {
-                AttemptShot(_controlledPlayer, 1.08f);
+                AttemptShot(controlledPlayer, 1.08f, moveInput);
             }
         }
         else
         {
-            if (Input.IsActionJustPressed("action_a"))
+            if (Input.IsActionJustPressed(actionA))
             {
-                AttemptStandTackle(_controlledPlayer);
+                AttemptStandTackle(controlledPlayer);
             }
 
-            if (Input.IsActionJustPressed("action_b"))
+            if (Input.IsActionJustPressed(actionB))
             {
-                AttemptSlideTackle(_controlledPlayer, moveInput);
+                AttemptSlideTackle(controlledPlayer, moveInput);
             }
         }
     }
@@ -329,7 +368,7 @@ public partial class MatchManager : Node2D
 
         foreach (var player in _homePlayers)
         {
-            if (player == _controlledPlayer)
+            if (_settings.HomeHumanControlled && player == _homeControlledPlayer)
             {
                 continue;
             }
@@ -339,6 +378,11 @@ public partial class MatchManager : Node2D
 
         foreach (var player in _awayPlayers)
         {
+            if (_settings.AwayHumanControlled && player == _awayControlledPlayer)
+            {
+                continue;
+            }
+
             UpdateAiPlayer(player, player == awayPressing);
         }
     }
@@ -369,19 +413,19 @@ public partial class MatchManager : Node2D
 
             if (shotDistance < 250f && shootingLaneClear)
             {
-                AttemptShot(player, 0.78f);
+                AttemptShot(player, 0.78f, player.FacingDirection);
                 return;
             }
 
             if (shotDistance < 340f && player.Role == PlayerRole.Big && shootingLaneClear && _rng.Randf() > 0.3f)
             {
-                AttemptShot(player, 0.92f);
+                AttemptShot(player, 0.92f, player.FacingDirection);
                 return;
             }
 
             if (ShouldAiPass(player))
             {
-                AttemptPass(player, true);
+                AttemptPass(player, true, player.FacingDirection);
                 return;
             }
 
@@ -643,7 +687,7 @@ public partial class MatchManager : Node2D
         return true;
     }
 
-    private bool AttemptPass(PlayerController passer, bool isAi)
+    private bool AttemptPass(PlayerController passer, bool isAi, Vector2 directionalInput)
     {
         if (_ball!.Carrier != passer)
         {
@@ -653,7 +697,7 @@ public partial class MatchManager : Node2D
         var teammates = passer.TeamSide == TeamSide.Home ? _homePlayers : _awayPlayers;
         PlayerController? target = null;
         var bestScore = float.MinValue;
-        var moveInput = passer == _controlledPlayer ? ReadMoveInput() : passer.FacingDirection;
+        var moveInput = directionalInput;
         if (moveInput == Vector2.Zero)
         {
             moveInput = passer.FacingDirection;
@@ -704,7 +748,7 @@ public partial class MatchManager : Node2D
         return true;
     }
 
-    private bool AttemptShot(PlayerController shooter, float powerScale)
+    private bool AttemptShot(PlayerController shooter, float powerScale, Vector2 directionalInput)
     {
         if (_ball!.Carrier != shooter)
         {
@@ -713,13 +757,9 @@ public partial class MatchManager : Node2D
 
         var targetGoal = PocketPitchConfig.AttackingGoalCenter(shooter.TeamSide);
         var desired = targetGoal - shooter.GlobalPosition;
-        if (shooter == _controlledPlayer)
+        if (directionalInput != Vector2.Zero)
         {
-            var input = ReadMoveInput();
-            if (input != Vector2.Zero)
-            {
-                desired = (input * 250f) + (targetGoal - shooter.GlobalPosition);
-            }
+            desired = (directionalInput * 250f) + (targetGoal - shooter.GlobalPosition);
         }
 
         var shotDirection = desired.Normalized();
@@ -936,6 +976,7 @@ public partial class MatchManager : Node2D
     {
         _phase = MatchPhase.FullTime;
         var summary = $"{_homeTeam.Name}  {_homeScore} - {_awayScore}  {_awayTeam.Name}";
+        _lastMatchResult = new MatchResult(_homeTeam, _awayTeam, _homeScore, _awayScore);
         _hud!.ShowFullTime(summary);
         SetStatus("Full time", 1000f);
     }
@@ -1063,9 +1104,11 @@ public partial class MatchManager : Node2D
         return point.DistanceTo(projection);
     }
 
-    private Vector2 ReadMoveInput()
+    private Vector2 ReadMoveInput(TeamSide side)
     {
-        return Input.GetVector("move_left", "move_right", "move_up", "move_down");
+        return side == TeamSide.Home
+            ? Input.GetVector("move_left", "move_right", "move_up", "move_down")
+            : Input.GetVector("p2_move_left", "p2_move_right", "p2_move_up", "p2_move_down");
     }
 
     private void SetStatus(string text, float duration)
