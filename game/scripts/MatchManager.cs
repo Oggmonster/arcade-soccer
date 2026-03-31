@@ -203,11 +203,11 @@ public partial class MatchManager : Node2D
             var homePosition = PocketPitchConfig.HomeAnchors[i];
             if (kickoffTeam == TeamSide.Home && i == 4)
             {
-                homePosition = new Vector2(0f, 44f);
+                homePosition = new Vector2(0f, 88f);
             }
             else if (kickoffTeam == TeamSide.Away && i == 4)
             {
-                homePosition = new Vector2(0f, 92f);
+                homePosition = new Vector2(0f, 148f);
             }
 
             _homePlayers[i].ResetForPosition(homePosition, Vector2.Up);
@@ -218,11 +218,11 @@ public partial class MatchManager : Node2D
             var awayPosition = PocketPitchConfig.AwayAnchors[i];
             if (kickoffTeam == TeamSide.Away && i == 4)
             {
-                awayPosition = new Vector2(0f, -44f);
+                awayPosition = new Vector2(0f, -88f);
             }
             else if (kickoffTeam == TeamSide.Home && i == 4)
             {
-                awayPosition = new Vector2(0f, -92f);
+                awayPosition = new Vector2(0f, -148f);
             }
 
             _awayPlayers[i].ResetForPosition(awayPosition, Vector2.Down);

@@ -11,8 +11,9 @@ public partial class FieldRenderer : Node2D
 
         DrawRect(fieldRect, grass, true);
 
-        const float stripeHeight = 80f;
-        for (var i = 0; i < 10; i++)
+        const float stripeHeight = 120f;
+        var stripeCount = Mathf.CeilToInt(fieldRect.Size.Y / stripeHeight);
+        for (var i = 0; i < stripeCount; i++)
         {
             if (i % 2 == 0)
             {

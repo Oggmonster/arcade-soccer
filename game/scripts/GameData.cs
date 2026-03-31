@@ -139,12 +139,12 @@ public sealed class MatchSummary
 
 public static class PocketPitchConfig
 {
-    public const float FieldWidth = 1100f;
-    public const float FieldHeight = 720f;
+    public const float FieldWidth = 1380f;
+    public const float FieldHeight = 1680f;
     public const float GoalWidth = 220f;
     public const float GoalDepth = 60f;
-    public const float PenaltyBoxWidth = 420f;
-    public const float PenaltyBoxDepth = 120f;
+    public const float PenaltyBoxWidth = 520f;
+    public const float PenaltyBoxDepth = 220f;
     public const float MatchLengthSeconds = 120f;
     public const float GoalFreezeSeconds = 0.9f;
     public const float KickoffDelaySeconds = 0.8f;
@@ -155,20 +155,20 @@ public static class PocketPitchConfig
 
     public static readonly Vector2[] HomeAnchors =
     {
-        new(-320f, 210f),
-        new(-100f, 150f),
-        new(110f, 150f),
-        new(320f, 210f),
-        new(0f, 20f)
+        new(-430f, 520f),
+        new(-150f, 330f),
+        new(150f, 330f),
+        new(430f, 520f),
+        new(0f, 90f)
     };
 
     public static readonly Vector2[] AwayAnchors =
     {
-        new(-320f, -210f),
-        new(-100f, -150f),
-        new(110f, -150f),
-        new(320f, -210f),
-        new(0f, -20f)
+        new(-430f, -520f),
+        new(-150f, -330f),
+        new(150f, -330f),
+        new(430f, -520f),
+        new(0f, -90f)
     };
 
     public static readonly string[] SquadSlots =
