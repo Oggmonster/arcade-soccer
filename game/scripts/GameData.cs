@@ -139,12 +139,15 @@ public sealed class MatchSummary
 
 public static class PocketPitchConfig
 {
-    public const float FieldWidth = 1380f;
-    public const float FieldHeight = 1680f;
+    public const int OutfieldPlayerCount = 7;
+    public const int SupportStrikerSlot = 5;
+    public const int StrikerSlot = 6;
+    public const float FieldWidth = 1500f;
+    public const float FieldHeight = 1920f;
     public const float GoalWidth = 220f;
     public const float GoalDepth = 60f;
-    public const float PenaltyBoxWidth = 520f;
-    public const float PenaltyBoxDepth = 220f;
+    public const float PenaltyBoxWidth = 580f;
+    public const float PenaltyBoxDepth = 250f;
     public const float MatchLengthSeconds = 120f;
     public const float GoalFreezeSeconds = 0.9f;
     public const float KickoffDelaySeconds = 0.8f;
@@ -155,28 +158,34 @@ public static class PocketPitchConfig
 
     public static readonly Vector2[] HomeAnchors =
     {
-        new(-430f, 520f),
-        new(-150f, 330f),
-        new(150f, 330f),
-        new(430f, 520f),
-        new(0f, 90f)
+        new(-500f, 560f),
+        new(-250f, 350f),
+        new(0f, 450f),
+        new(250f, 350f),
+        new(500f, 560f),
+        new(-130f, 150f),
+        new(130f, 50f)
     };
 
     public static readonly Vector2[] AwayAnchors =
     {
-        new(-430f, -520f),
-        new(-150f, -330f),
-        new(150f, -330f),
-        new(430f, -520f),
-        new(0f, -90f)
+        new(-500f, -560f),
+        new(-250f, -350f),
+        new(0f, -450f),
+        new(250f, -350f),
+        new(500f, -560f),
+        new(-130f, -150f),
+        new(130f, -50f)
     };
 
     public static readonly string[] SquadSlots =
     {
         "Left Wing",
         "Left Mid",
+        "Center Mid",
         "Right Mid",
         "Right Wing",
+        "Support Striker",
         "Striker"
     };
 
@@ -190,7 +199,9 @@ public static class PocketPitchConfig
             PlayerRole.Medium,
             PlayerRole.Big,
             PlayerRole.Medium,
-            PlayerRole.Small
+            PlayerRole.Small,
+            PlayerRole.Medium,
+            PlayerRole.Big
         });
 
     public static readonly TeamDefinition[] AwayPresets =
@@ -205,7 +216,9 @@ public static class PocketPitchConfig
                 PlayerRole.Medium,
                 PlayerRole.Medium,
                 PlayerRole.Small,
-                PlayerRole.Small
+                PlayerRole.Small,
+                PlayerRole.Medium,
+                PlayerRole.Big
             }),
         new(
             "Evergreen Athletic",
@@ -217,7 +230,9 @@ public static class PocketPitchConfig
                 PlayerRole.Small,
                 PlayerRole.Medium,
                 PlayerRole.Small,
-                PlayerRole.Big
+                PlayerRole.Big,
+                PlayerRole.Small,
+                PlayerRole.Medium
             }),
         new(
             "Metro Meteors",
@@ -229,7 +244,9 @@ public static class PocketPitchConfig
                 PlayerRole.Big,
                 PlayerRole.Medium,
                 PlayerRole.Medium,
-                PlayerRole.Small
+                PlayerRole.Small,
+                PlayerRole.Medium,
+                PlayerRole.Big
             })
     };
 

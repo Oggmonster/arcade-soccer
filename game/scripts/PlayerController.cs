@@ -138,6 +138,14 @@ public partial class PlayerController : Node2D, IPitchAgent
         _recoveryTimer = Mathf.Max(_recoveryTimer, durationSeconds);
     }
 
+    public void ApplyImpact(Vector2 impulse, float recoverySeconds)
+    {
+        _velocity = impulse;
+        _recoveryTimer = Mathf.Max(_recoveryTimer, recoverySeconds);
+        _flashTimer = Mathf.Max(_flashTimer, 0.16f);
+        QueueRedraw();
+    }
+
     public void FlashAction()
     {
         _flashTimer = 0.16f;

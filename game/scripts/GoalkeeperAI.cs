@@ -2,6 +2,8 @@ using Godot;
 
 public partial class GoalkeeperAI : Node2D, IPitchAgent
 {
+    private const float MoveSpeed = 245f;
+    private const float Acceleration = 1050f;
     private Vector2 _velocity;
     private float _holdTimer;
     private Rect2 _roamRect;
@@ -65,7 +67,7 @@ public partial class GoalkeeperAI : Node2D, IPitchAgent
 
         var desired = targetPosition - GlobalPosition;
         var desiredDirection = desired.LengthSquared() > 0.1f ? desired.Normalized() : Vector2.Zero;
-        _velocity = _velocity.MoveToward(desiredDirection * 215f, 900f * (float)delta);
+        _velocity = _velocity.MoveToward(desiredDirection * MoveSpeed, Acceleration * (float)delta);
         GlobalPosition += _velocity * (float)delta;
         ClampToRoamRect();
         QueueRedraw();

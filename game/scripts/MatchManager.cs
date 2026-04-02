@@ -6,6 +6,7 @@ public partial class MatchManager : Node2D
 {
     private const float GoalkeeperClaimSpeedThreshold = 760f;
     private const float GoalkeeperPressureDistance = 84f;
+    private const float RecentAiReturnPassWindow = 1.15f;
     public event Action? ReturnToMenuRequested;
     public event Action<MatchResult>? MatchCompleted;
 
@@ -37,9 +38,12 @@ public partial class MatchManager : Node2D
     private float _phaseTimer;
     private float _matchTimeRemaining = PocketPitchConfig.MatchLengthSeconds;
     private float _statusTimer;
+    private float _recentAiPassTimer;
     private int _homeScore;
     private int _awayScore;
     private MatchResult? _lastMatchResult;
+    private PlayerController? _recentAiPassSource;
+    private PlayerController? _recentAiPassTarget;
 
     public void Configure(MatchSettings settings)
     {
@@ -85,6 +89,15 @@ public partial class MatchManager : Node2D
         }
 
         UpdateStatus(delta);
+        if (_recentAiPassTimer > 0f)
+        {
+            _recentAiPassTimer = Mathf.Max(0f, _recentAiPassTimer - (float)delta);
+            if (_recentAiPassTimer <= 0f)
+            {
+                _recentAiPassSource = null;
+                _recentAiPassTarget = null;
+            }
+        }
 
         if (_phase == MatchPhase.Paused || _phase == MatchPhase.FullTime)
         {
@@ -164,7 +177,10 @@ public partial class MatchManager : Node2D
         _homeKeeper?.QueueFree();
         _awayKeeper?.QueueFree();
 
-        for (var i = 0; i < 5; i++)
+        var squadSize = Mathf.Min(
+            PocketPitchConfig.OutfieldPlayerCount,
+            Mathf.Min(_homeTeam.Roles.Length, Mathf.Min(_awayTeam.Roles.Length, Mathf.Min(PocketPitchConfig.HomeAnchors.Length, PocketPitchConfig.AwayAnchors.Length))));
+        for (var i = 0; i < squadSize; i++)
         {
             var homePlayer = _playerScene!.Instantiate<PlayerController>();
             homePlayer.Configure(TeamSide.Home, i, _homeTeam.Roles[i], _homeTeam.PrimaryColor, _homeTeam.AccentColor, PocketPitchConfig.HomeAnchors[i]);
@@ -217,11 +233,11 @@ public partial class MatchManager : Node2D
         for (var i = 0; i < _homePlayers.Count; i++)
         {
             var homePosition = PocketPitchConfig.HomeAnchors[i];
-            if (kickoffTeam == TeamSide.Home && i == 4)
+            if (kickoffTeam == TeamSide.Home && i == PocketPitchConfig.StrikerSlot)
             {
                 homePosition = new Vector2(0f, 88f);
             }
-            else if (kickoffTeam == TeamSide.Away && i == 4)
+            else if (kickoffTeam == TeamSide.Home && i == PocketPitchConfig.SupportStrikerSlot)
             {
                 homePosition = new Vector2(0f, 148f);
             }
@@ -232,11 +248,11 @@ public partial class MatchManager : Node2D
         for (var i = 0; i < _awayPlayers.Count; i++)
         {
             var awayPosition = PocketPitchConfig.AwayAnchors[i];
-            if (kickoffTeam == TeamSide.Away && i == 4)
+            if (kickoffTeam == TeamSide.Away && i == PocketPitchConfig.StrikerSlot)
             {
                 awayPosition = new Vector2(0f, -88f);
             }
-            else if (kickoffTeam == TeamSide.Home && i == 4)
+            else if (kickoffTeam == TeamSide.Away && i == PocketPitchConfig.SupportStrikerSlot)
             {
                 awayPosition = new Vector2(0f, -148f);
             }
@@ -247,7 +263,7 @@ public partial class MatchManager : Node2D
         _homeKeeper!.ResetForKickoff();
         _awayKeeper!.ResetForKickoff();
 
-        var kickoffPlayer = kickoffTeam == TeamSide.Home ? _homePlayers[4] : _awayPlayers[4];
+        var kickoffPlayer = kickoffTeam == TeamSide.Home ? _homePlayers[PocketPitchConfig.StrikerSlot] : _awayPlayers[PocketPitchConfig.StrikerSlot];
         _ball!.AttachTo(kickoffPlayer);
         UpdateControlledPlayers();
         SetStatus(kickoffTeam == TeamSide.Home ? "Blue kick off" : "Orange kick off", PocketPitchConfig.KickoffDelaySeconds);
@@ -409,27 +425,26 @@ public partial class MatchManager : Node2D
         {
             var attackGoal = PocketPitchConfig.AttackingGoalCenter(player.TeamSide);
             var shotDistance = player.GlobalPosition.DistanceTo(attackGoal);
-            var shootingLaneClear = HasOpenLane(player.GlobalPosition, attackGoal, player.TeamSide, 70f);
+            var shootingLaneClear = HasOpenLane(player.GlobalPosition, attackGoal, player.TeamSide, 66f);
+            var pressure = GetOpponentPressure(player, 150f);
+            var supportRunnerAhead = CountSupportingRunnersAhead(player);
 
-            if (shotDistance < 250f && shootingLaneClear)
+            if (ShouldAiShoot(player, shotDistance, shootingLaneClear, pressure))
             {
-                AttemptShot(player, 0.78f, player.FacingDirection);
+                var powerScale = player.Role == PlayerRole.Big
+                    ? (shotDistance < 300f ? 0.98f : 0.92f)
+                    : (shotDistance < 215f ? 0.88f : 0.8f);
+                AttemptShot(player, powerScale, player.FacingDirection);
                 return;
             }
 
-            if (shotDistance < 340f && player.Role == PlayerRole.Big && shootingLaneClear && _rng.Randf() > 0.3f)
-            {
-                AttemptShot(player, 0.92f, player.FacingDirection);
-                return;
-            }
-
-            if (ShouldAiPass(player))
+            if (ShouldAiPass(player, shotDistance, shootingLaneClear, pressure, supportRunnerAhead))
             {
                 AttemptPass(player, true, player.FacingDirection);
                 return;
             }
 
-            var dribbleTarget = attackGoal + new Vector2((player.SlotIndex - 2) * 35f, player.TeamSide == TeamSide.Home ? 90f : -90f);
+            var dribbleTarget = GetAiDribbleTarget(player, attackGoal, pressure);
             player.SetDesiredDirection((dribbleTarget - player.GlobalPosition).Normalized());
             return;
         }
@@ -625,6 +640,13 @@ public partial class MatchManager : Node2D
             return;
         }
 
+        if (!CanSlideTackleRole(tackler.Role, carrier.Role))
+        {
+            tackler.ConsumeSlideHit();
+            tackler.ApplyRecovery(0.32f);
+            return;
+        }
+
         tackler.ConsumeSlideHit();
         ResolveTackle(tackler, carrier, true);
     }
@@ -664,7 +686,8 @@ public partial class MatchManager : Node2D
     private bool ResolveTackle(PlayerController tackler, PlayerController carrier, bool sliding)
     {
         var tackleValue = tackler.Stats.TackleStrength + (sliding ? 1.25f : 0f) + _rng.Randf();
-        var controlValue = carrier.Stats.BallRetention + _rng.Randf();
+        var controlMultiplier = sliding ? 1f : 1.12f;
+        var controlValue = (carrier.Stats.BallRetention * controlMultiplier) + _rng.Randf() + (sliding ? 0f : _rng.Randf() * 0.35f);
         if (tackleValue < controlValue)
         {
             if (sliding)
@@ -681,9 +704,35 @@ public partial class MatchManager : Node2D
             looseDirection = tackler.FacingDirection;
         }
 
-        carrier.ApplyRecovery(sliding ? 0.34f : 0.18f);
-        _ball!.KickFrom(carrier, looseDirection * (sliding ? 480f : 320f), 0.08f);
-        SetStatus(sliding ? "Crunching tackle!" : "Ball won!", 0.45f);
+        if (sliding)
+        {
+            var impactDirection = looseDirection;
+            var impactStrength = tackler.Role switch
+            {
+                PlayerRole.Big => 760f,
+                PlayerRole.Medium => 640f,
+                _ => 520f
+            };
+            var looseSpeed = tackler.Role switch
+            {
+                PlayerRole.Big => 760f,
+                PlayerRole.Medium => 680f,
+                _ => 600f
+            };
+            var looseScatter = Mathf.DegToRad(_rng.RandfRange(-26f, 26f));
+            var looseBallDirection = impactDirection.Rotated(looseScatter);
+            carrier.ApplyImpact(impactDirection * impactStrength, 0.52f);
+            _ball!.KickFrom(carrier, looseBallDirection * looseSpeed, 0.12f);
+            _ball.LockClaimsAgainst(tackler, 0.20f);
+            SetStatus("Crunching tackle!", 0.45f);
+        }
+        else
+        {
+            carrier.ApplyRecovery(0.2f);
+            _ball!.KickFrom(carrier, looseDirection * 320f, 0.08f);
+            SetStatus("Ball won!", 0.45f);
+        }
+
         return true;
     }
 
@@ -721,7 +770,11 @@ public partial class MatchManager : Node2D
             var directionalWeight = Mathf.Max(-0.4f, moveInput.Dot(direction));
             var progressWeight = passer.TeamSide == TeamSide.Home ? -teammate.GlobalPosition.Y : teammate.GlobalPosition.Y;
             var laneBonus = HasOpenLane(passer.GlobalPosition, teammate.GlobalPosition, passer.TeamSide, 55f) ? 120f : -140f;
-            var score = (directionalWeight * 240f) - distance + (progressWeight * 0.18f) + laneBonus;
+            var spacingBonus = Mathf.Clamp(Mathf.Abs(teammate.GlobalPosition.X - passer.GlobalPosition.X) * 0.22f, 0f, 95f);
+            var shortPassPenalty = distance < 150f ? 120f : 0f;
+            var backtrackPenalty = TeamProgressValue(teammate.GlobalPosition, passer.TeamSide) < TeamProgressValue(passer.GlobalPosition, passer.TeamSide) - 35f ? 90f : 0f;
+            var returnPassPenalty = isAi && _recentAiPassTimer > 0f && passer == _recentAiPassTarget && teammate == _recentAiPassSource ? 220f : 0f;
+            var score = (directionalWeight * 240f) - distance + (progressWeight * 0.22f) + laneBonus + spacingBonus - shortPassPenalty - backtrackPenalty - returnPassPenalty;
             if (!isAi && directionalWeight < -0.2f)
             {
                 score -= 160f;
@@ -745,6 +798,12 @@ public partial class MatchManager : Node2D
         _ball.KickFrom(passer, finalDirection * passer.Stats.PassSpeed, 0.06f);
         passer.FlashAction();
         passer.ApplyRecovery(0.08f);
+        if (isAi)
+        {
+            _recentAiPassSource = passer;
+            _recentAiPassTarget = target;
+            _recentAiPassTimer = RecentAiReturnPassWindow;
+        }
         return true;
     }
 
@@ -1020,15 +1079,28 @@ public partial class MatchManager : Node2D
     private Vector2 GetSupportTarget(PlayerController player)
     {
         var anchor = player.SpawnAnchor;
-        var ballInfluence = _ball!.GlobalPosition;
+        var ball = _ball!;
+        var reference = TeamInPossession(player.TeamSide) && ball.Carrier is PlayerController carrier && carrier.TeamSide == player.TeamSide
+            ? carrier.GlobalPosition
+            : ball.GlobalPosition;
         var attackSign = player.TeamSide == TeamSide.Home ? -1f : 1f;
+        var possessionPush = TeamInPossession(player.TeamSide) ? 1f : 0f;
+        var roleWidth = GetSlotWidthBias(player.SlotIndex);
+        var roleDepth = GetSlotDepthBias(player.SlotIndex);
         var target = new Vector2(
-            Mathf.Clamp((anchor.X * 0.65f) + (ballInfluence.X * 0.35f), -PocketPitchConfig.FieldWidth * 0.42f, PocketPitchConfig.FieldWidth * 0.42f),
-            Mathf.Clamp((anchor.Y * 0.55f) + (ballInfluence.Y * 0.28f) + (attackSign * 80f), -PocketPitchConfig.FieldHeight * 0.38f, PocketPitchConfig.FieldHeight * 0.38f));
+            Mathf.Clamp((anchor.X * 0.42f) + (reference.X * 0.58f) + (roleWidth * 0.52f), -PocketPitchConfig.FieldWidth * 0.44f, PocketPitchConfig.FieldWidth * 0.44f),
+            Mathf.Clamp(
+                Mathf.Lerp(anchor.Y, reference.Y + (attackSign * roleDepth), 0.54f + (0.16f * possessionPush)),
+                -PocketPitchConfig.FieldHeight * 0.46f,
+                PocketPitchConfig.FieldHeight * 0.46f));
 
         if (player.Role == PlayerRole.Small)
         {
-            target += new Vector2(player.SlotIndex < 2 ? -70f : 70f, attackSign * 18f);
+            target += new Vector2(Mathf.Sign(roleWidth) * 85f, attackSign * 36f);
+        }
+        else if (player.Role == PlayerRole.Big)
+        {
+            target += new Vector2(0f, -attackSign * 14f);
         }
 
         return target;
@@ -1038,10 +1110,20 @@ public partial class MatchManager : Node2D
     {
         var anchor = player.SpawnAnchor;
         var goal = PocketPitchConfig.GoalCenter(player.TeamSide);
-        var ballPressurePoint = _ball!.GlobalPosition.Lerp(goal, 0.35f);
+        var ballPressurePoint = _ball!.GlobalPosition.Lerp(goal, 0.44f);
+        var carrier = _ball.Carrier as PlayerController;
+        var sameSideAsBallCarrier = carrier != null && carrier.TeamSide == player.TeamSide;
+        if (sameSideAsBallCarrier)
+        {
+            ballPressurePoint = ballPressurePoint.Lerp(anchor, 0.2f);
+        }
+
+        var centralBias = new Vector2(
+            Mathf.Lerp(anchor.X, 0f, 0.26f),
+            Mathf.Lerp(anchor.Y, ballPressurePoint.Y, 0.68f));
         return new Vector2(
-            Mathf.Lerp(anchor.X, ballPressurePoint.X, 0.45f),
-            Mathf.Lerp(anchor.Y, ballPressurePoint.Y, 0.58f));
+            Mathf.Lerp(centralBias.X, ballPressurePoint.X, 0.60f),
+            centralBias.Y);
     }
 
     private Vector2 GetGoalkeeperRespectTarget(TeamSide keeperSide, PlayerController player)
@@ -1066,15 +1148,173 @@ public partial class MatchManager : Node2D
         return false;
     }
 
-    private bool ShouldAiPass(PlayerController player)
+    private bool ShouldAiPass(PlayerController player, float distanceToGoal, bool shootingLaneClear, float pressure, int supportRunnerAhead)
     {
-        var distanceToGoal = player.GlobalPosition.DistanceTo(PocketPitchConfig.AttackingGoalCenter(player.TeamSide));
-        if (distanceToGoal > 280f && !HasOpenLane(player.GlobalPosition, PocketPitchConfig.AttackingGoalCenter(player.TeamSide), player.TeamSide, 75f))
+        var blockedShot = distanceToGoal > 250f && !shootingLaneClear;
+        var underPressure = pressure > 0.62f;
+        var isolated = supportRunnerAhead == 0 && distanceToGoal > 220f;
+        if (underPressure && distanceToGoal > 165f)
         {
             return true;
         }
 
-        return _rng.Randf() > 0.985f;
+        if (blockedShot && supportRunnerAhead > 0 && _rng.Randf() > (player.Role == PlayerRole.Small ? 0.72f : 0.84f))
+        {
+            return true;
+        }
+
+        if (isolated)
+        {
+            return false;
+        }
+
+        return pressure > 0.48f && _rng.Randf() > 0.94f;
+    }
+
+    private bool ShouldAiShoot(PlayerController player, float shotDistance, bool shootingLaneClear, float pressure)
+    {
+        if (!shootingLaneClear)
+        {
+            return false;
+        }
+
+        if (player.Role == PlayerRole.Big)
+        {
+            return shotDistance < 420f || (shotDistance < 540f && pressure > 0.18f && _rng.Randf() > 0.36f);
+        }
+
+        if (player.Role == PlayerRole.Medium)
+        {
+            return shotDistance < 300f || (shotDistance < 390f && pressure > 0.42f && _rng.Randf() > 0.62f);
+        }
+
+        return shotDistance < 235f || (shotDistance < 300f && pressure > 0.62f && _rng.Randf() > 0.72f);
+    }
+
+    private Vector2 GetAiDribbleTarget(PlayerController player, Vector2 attackGoal, float pressure)
+    {
+        var attackSign = player.TeamSide == TeamSide.Home ? -1f : 1f;
+        var widthBias = GetSlotWidthBias(player.SlotIndex) * 0.55f;
+        var candidates = new[]
+        {
+            attackGoal + new Vector2(widthBias, attackSign * 90f),
+            player.GlobalPosition + new Vector2(widthBias - 180f, attackSign * 150f),
+            player.GlobalPosition + new Vector2(widthBias * 0.4f, attackSign * 195f),
+            player.GlobalPosition + new Vector2(widthBias + 180f, attackSign * 150f)
+        };
+
+        var best = candidates[0];
+        var bestScore = float.MinValue;
+        foreach (var candidate in candidates)
+        {
+            var clampedCandidate = new Vector2(
+                Mathf.Clamp(candidate.X, -PocketPitchConfig.FieldWidth * 0.44f, PocketPitchConfig.FieldWidth * 0.44f),
+                Mathf.Clamp(candidate.Y, -PocketPitchConfig.FieldHeight * 0.46f, PocketPitchConfig.FieldHeight * 0.46f));
+            var laneBonus = HasOpenLane(player.GlobalPosition, clampedCandidate, player.TeamSide, 58f) ? 140f : -120f;
+            var progressBonus = TeamProgressValue(clampedCandidate, player.TeamSide) * 0.18f;
+            var crowdPenalty = GetOpponentCrowding(clampedCandidate, player.TeamSide, 125f) * 120f;
+            var widthBonus = Mathf.Abs(clampedCandidate.X) * (pressure > 0.45f ? 0.11f : 0.05f);
+            var score = laneBonus + progressBonus + widthBonus - crowdPenalty;
+            if (score > bestScore)
+            {
+                bestScore = score;
+                best = clampedCandidate;
+            }
+        }
+
+        return best;
+    }
+
+    private float GetOpponentPressure(PlayerController player, float radius)
+    {
+        var opponents = player.TeamSide == TeamSide.Home ? _awayPlayers : _homePlayers;
+        var pressure = 0f;
+        foreach (var opponent in opponents)
+        {
+            var distance = player.GlobalPosition.DistanceTo(opponent.GlobalPosition);
+            if (distance >= radius)
+            {
+                continue;
+            }
+
+            pressure += 1f - (distance / radius);
+        }
+
+        return pressure;
+    }
+
+    private float GetOpponentCrowding(Vector2 position, TeamSide attackingSide, float radius)
+    {
+        var opponents = attackingSide == TeamSide.Home ? _awayPlayers : _homePlayers;
+        var crowding = 0f;
+        foreach (var opponent in opponents)
+        {
+            var distance = position.DistanceTo(opponent.GlobalPosition);
+            if (distance >= radius)
+            {
+                continue;
+            }
+
+            crowding += 1f - (distance / radius);
+        }
+
+        return crowding;
+    }
+
+    private int CountSupportingRunnersAhead(PlayerController player)
+    {
+        var teammates = player.TeamSide == TeamSide.Home ? _homePlayers : _awayPlayers;
+        var runners = 0;
+        foreach (var teammate in teammates)
+        {
+            if (teammate == player)
+            {
+                continue;
+            }
+
+            var ahead = player.TeamSide == TeamSide.Home
+                ? teammate.GlobalPosition.Y < player.GlobalPosition.Y - 55f
+                : teammate.GlobalPosition.Y > player.GlobalPosition.Y + 55f;
+            if (ahead)
+            {
+                runners++;
+            }
+        }
+
+        return runners;
+    }
+
+    private static float TeamProgressValue(Vector2 position, TeamSide attackingSide)
+    {
+        return attackingSide == TeamSide.Home ? -position.Y : position.Y;
+    }
+
+    private static float GetSlotWidthBias(int slotIndex)
+    {
+        return slotIndex switch
+        {
+            0 => -230f,
+            1 => -120f,
+            2 => 0f,
+            3 => 120f,
+            4 => 230f,
+            5 => -70f,
+            6 => 70f,
+            _ => 0f
+        };
+    }
+
+    private static float GetSlotDepthBias(int slotIndex)
+    {
+        return slotIndex switch
+        {
+            0 or 4 => 190f,
+            1 or 3 => 140f,
+            2 => 120f,
+            5 => 255f,
+            6 => 290f,
+            _ => 180f
+        };
     }
 
     private bool HasOpenLane(Vector2 from, Vector2 to, TeamSide passingTeam, float laneWidth)
@@ -1102,6 +1342,16 @@ public partial class MatchManager : Node2D
         var t = Mathf.Clamp((point - segmentStart).Dot(line) / line.LengthSquared(), 0f, 1f);
         var projection = segmentStart + (line * t);
         return point.DistanceTo(projection);
+    }
+
+    private static bool CanSlideTackleRole(PlayerRole tacklerRole, PlayerRole carrierRole)
+    {
+        return tacklerRole switch
+        {
+            PlayerRole.Big => true,
+            PlayerRole.Medium => carrierRole != PlayerRole.Big,
+            _ => carrierRole == PlayerRole.Small
+        };
     }
 
     private Vector2 ReadMoveInput(TeamSide side)

@@ -154,10 +154,11 @@ public static class NationalTeamDatabase
         PlayerRole[] roles,
         params string[] playerNames)
     {
+        var expandedRoles = ExpandRoles(roles);
         return new NationalTeamProfile(
             code,
-            new TeamDefinition(name, new Color(primaryColor), new Color(accentColor), roles),
-            playerNames);
+            new TeamDefinition(name, new Color(primaryColor), new Color(accentColor), expandedRoles),
+            ExpandPlayerNames(playerNames, expandedRoles.Length));
     }
 
     private static PlayerRole[] Roles(
@@ -168,6 +169,112 @@ public static class NationalTeamDatabase
         PlayerRole striker)
     {
         return new[] { leftWing, leftMid, rightMid, rightWing, striker };
+    }
+
+    private static PlayerRole[] ExpandRoles(PlayerRole[] baseRoles)
+    {
+        if (baseRoles.Length >= PocketPitchConfig.OutfieldPlayerCount)
+        {
+            return baseRoles.ToArray();
+        }
+
+        var leftWing = baseRoles[0];
+        var leftMid = baseRoles[1];
+        var rightMid = baseRoles[2];
+        var rightWing = baseRoles[3];
+        var striker = baseRoles[4];
+
+        return new[]
+        {
+            leftWing,
+            leftMid,
+            ChooseCenterMid(leftMid, rightMid),
+            rightMid,
+            rightWing,
+            ChooseSupportStriker(striker, leftWing, rightWing),
+            striker
+        };
+    }
+
+    private static PlayerRole ChooseCenterMid(PlayerRole leftMid, PlayerRole rightMid)
+    {
+        if (leftMid == rightMid)
+        {
+            return leftMid;
+        }
+
+        if (leftMid == PlayerRole.Big || rightMid == PlayerRole.Big)
+        {
+            return PlayerRole.Big;
+        }
+
+        if (leftMid == PlayerRole.Small && rightMid == PlayerRole.Small)
+        {
+            return PlayerRole.Small;
+        }
+
+        return PlayerRole.Medium;
+    }
+
+    private static PlayerRole ChooseSupportStriker(PlayerRole striker, PlayerRole leftWing, PlayerRole rightWing)
+    {
+        if (striker == PlayerRole.Big)
+        {
+            return PlayerRole.Medium;
+        }
+
+        if (striker == PlayerRole.Small)
+        {
+            return leftWing == PlayerRole.Small || rightWing == PlayerRole.Small
+                ? PlayerRole.Small
+                : PlayerRole.Medium;
+        }
+
+        return leftWing == PlayerRole.Big || rightWing == PlayerRole.Big
+            ? PlayerRole.Big
+            : PlayerRole.Medium;
+    }
+
+    private static string[] ExpandPlayerNames(string[] baseNames, int requiredCount)
+    {
+        if (baseNames.Length >= requiredCount)
+        {
+            return baseNames.ToArray();
+        }
+
+        var names = new List<string>(baseNames);
+        var parts = baseNames
+            .Select(name =>
+            {
+                var split = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                return new
+                {
+                    First = split.FirstOrDefault() ?? "Alex",
+                    Last = split.Length > 1 ? split[^1] : "Vale"
+                };
+            })
+            .ToArray();
+
+        for (var offset = 1; names.Count < requiredCount && offset < parts.Length + 2; offset++)
+        {
+            for (var i = 0; i < parts.Length && names.Count < requiredCount; i++)
+            {
+                var first = parts[i].First;
+                var last = parts[(i + offset) % parts.Length].Last;
+                var candidate = $"{first} {last}";
+                if (!names.Contains(candidate, StringComparer.Ordinal))
+                {
+                    names.Add(candidate);
+                }
+            }
+        }
+
+        while (names.Count < requiredCount)
+        {
+            names.Add($"Player {names.Count + 1}");
+        }
+
+        return names.ToArray();
     }
 }
 

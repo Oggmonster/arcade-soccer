@@ -73,7 +73,7 @@ horizontal_alignment = 1
 [node name="Subtitle" type="Label" parent="Center/Panel/VBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "Arcade 5v5 soccer in short, chaotic bursts."
+text = "Arcade 7v7 soccer in short, chaotic bursts."
 horizontal_alignment = 1
 
 [node name="Spacer" type="Control" parent="Center/Panel/VBox"]

@@ -5,7 +5,9 @@ public partial class BallController : Node2D
     private IBallCarrier? _owner;
     private Vector2 _velocity;
     private Node? _claimLockedNode;
+    private Node? _secondaryClaimLockedNode;
     private float _claimLockTimer;
+    private float _secondaryClaimLockTimer;
 
     public IBallCarrier? Carrier => _owner;
     public Vector2 Velocity => _velocity;
@@ -24,7 +26,9 @@ public partial class BallController : Node2D
         _owner = owner;
         _velocity = Vector2.Zero;
         _claimLockTimer = 0f;
+        _secondaryClaimLockTimer = 0f;
         _claimLockedNode = null;
+        _secondaryClaimLockedNode = null;
         SnapToOwner();
         QueueRedraw();
     }
@@ -41,7 +45,15 @@ public partial class BallController : Node2D
 
     public bool CanBeClaimedBy(Node candidate)
     {
-        return _claimLockTimer <= 0f || candidate != _claimLockedNode;
+        var blockedByPrimary = _claimLockTimer > 0f && candidate == _claimLockedNode;
+        var blockedBySecondary = _secondaryClaimLockTimer > 0f && candidate == _secondaryClaimLockedNode;
+        return !blockedByPrimary && !blockedBySecondary;
+    }
+
+    public void LockClaimsAgainst(Node candidate, float claimLockSeconds)
+    {
+        _secondaryClaimLockedNode = candidate;
+        _secondaryClaimLockTimer = Mathf.Max(_secondaryClaimLockTimer, claimLockSeconds);
     }
 
     public void Simulate(double delta)
@@ -49,6 +61,11 @@ public partial class BallController : Node2D
         if (_claimLockTimer > 0f)
         {
             _claimLockTimer = Mathf.Max(0f, _claimLockTimer - (float)delta);
+        }
+
+        if (_secondaryClaimLockTimer > 0f)
+        {
+            _secondaryClaimLockTimer = Mathf.Max(0f, _secondaryClaimLockTimer - (float)delta);
         }
 
         if (_owner != null)
