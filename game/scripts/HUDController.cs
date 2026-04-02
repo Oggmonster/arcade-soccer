@@ -26,6 +26,13 @@ public partial class HUDController : CanvasLayer
         _primaryButton = GetNode<Button>("%RematchButton");
         _menuButton = GetNode<Button>("%MenuButton");
 
+        ArcadeUiStyler.ApplyScoreChip(GetNode<PanelContainer>("Root/TopBar/TopHBox/ScorePanel"), _scoreLabel, new Color(0.05f, 0.20f, 0.27f, 0.94f), new Color(0.38f, 0.95f, 1f, 1f), 30);
+        ArcadeUiStyler.ApplyScoreChip(GetNode<PanelContainer>("Root/TopBar/TopHBox/TimerPanel"), _timerLabel, new Color(0.28f, 0.14f, 0.09f, 0.94f), new Color(1f, 0.78f, 0.31f, 1f), 32);
+        ArcadeUiStyler.ApplyStatusPanel(GetNode<PanelContainer>("Root/StatusPanel"), _statusLabel);
+        ArcadeUiStyler.ApplyOverlayPanel(_fullTimePanel, GetNode<Label>("Root/FullTimeCenter/FullTimePanel/FullTimeVBox/FullTimeTitle"), _fullTimeLabel);
+        ArcadeUiStyler.ApplyPrimaryButton(_primaryButton);
+        ArcadeUiStyler.ApplySecondaryButton(_menuButton);
+
         _primaryButton.Pressed += () => PrimaryActionRequested?.Invoke();
         _menuButton.Pressed += () => MenuRequested?.Invoke();
         HideFullTime();
@@ -60,6 +67,7 @@ public partial class HUDController : CanvasLayer
     {
         _fullTimePanel!.Visible = true;
         _fullTimeLabel!.Text = summary;
+        _primaryButton!.GrabFocus();
     }
 
     public void ConfigureEndActions(string primaryLabel, string menuLabel)

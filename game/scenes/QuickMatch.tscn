@@ -18,7 +18,37 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.0627451, 0.12549, 0.176471, 1)
+color = Color(0.0470588, 0.109804, 0.164706, 1)
+
+[node name="HomeTint" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 0.56
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.180392, 0.784314, 1, 0.10)
+
+[node name="AwayTint" type="ColorRect" parent="."]
+layout_mode = 1
+anchor_left = 0.44
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(1, 0.529412, 0.203922, 0.10)
+
+[node name="TopStripe" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 0.0
+offset_bottom = 104.0
+grow_horizontal = 2
+mouse_filter = 2
+color = Color(0.956863, 0.756863, 0.231373, 0.08)
 
 [node name="Margin" type="MarginContainer" parent="."]
 layout_mode = 1

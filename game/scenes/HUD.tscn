@@ -28,14 +28,21 @@ theme_override_constants/margin_right = 28
 layout_mode = 2
 theme_override_constants/separation = 18
 
-[node name="ScoreLabel" type="Label" parent="Root/TopBar/TopHBox"]
+[node name="ScorePanel" type="PanelContainer" parent="Root/TopBar/TopHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ScoreLabel" type="Label" parent="Root/TopBar/TopHBox/ScorePanel"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 28
 text = "Home 0 - 0 Away"
 
-[node name="TimerLabel" type="Label" parent="Root/TopBar/TopHBox"]
+[node name="TimerPanel" type="PanelContainer" parent="Root/TopBar/TopHBox"]
+layout_mode = 2
+
+[node name="TimerLabel" type="Label" parent="Root/TopBar/TopHBox/TimerPanel"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 32

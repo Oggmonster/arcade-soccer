@@ -332,8 +332,8 @@ public partial class MatchManager : Node2D
     {
         controlledPlayer.SetDesiredDirection(moveInput);
         var humanHasBall = _ball!.Carrier == controlledPlayer;
-        var actionA = teamSide == TeamSide.Home ? "action_a" : "p2_action_a";
-        var actionB = teamSide == TeamSide.Home ? "action_b" : "p2_action_b";
+        var actionA = GetActionAName(teamSide);
+        var actionB = GetActionBName(teamSide);
 
         if (humanHasBall)
         {
@@ -1106,9 +1106,32 @@ public partial class MatchManager : Node2D
 
     private Vector2 ReadMoveInput(TeamSide side)
     {
-        return side == TeamSide.Home
+        return UsesPrimaryInputs(side)
             ? Input.GetVector("move_left", "move_right", "move_up", "move_down")
             : Input.GetVector("p2_move_left", "p2_move_right", "p2_move_up", "p2_move_down");
+    }
+
+    private string GetActionAName(TeamSide side)
+    {
+        return UsesPrimaryInputs(side) ? "action_a" : "p2_action_a";
+    }
+
+    private string GetActionBName(TeamSide side)
+    {
+        return UsesPrimaryInputs(side) ? "action_b" : "p2_action_b";
+    }
+
+    private bool UsesPrimaryInputs(TeamSide side)
+    {
+        var bothHumanControlled = _settings.HomeHumanControlled && _settings.AwayHumanControlled;
+        if (!bothHumanControlled)
+        {
+            return side == TeamSide.Home
+                ? _settings.HomeHumanControlled
+                : _settings.AwayHumanControlled;
+        }
+
+        return side == TeamSide.Home;
     }
 
     private void SetStatus(string text, float duration)

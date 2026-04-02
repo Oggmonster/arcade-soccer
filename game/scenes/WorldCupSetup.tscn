@@ -18,7 +18,28 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.105882, 0.0941176, 0.180392, 1)
+color = Color(0.0705882, 0.0823529, 0.168627, 1)
+
+[node name="GoldBand" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 76.0
+offset_bottom = 184.0
+grow_horizontal = 2
+mouse_filter = 2
+color = Color(1, 0.713726, 0.192157, 0.12)
+
+[node name="CoolCorner" type="ColorRect" parent="."]
+layout_mode = 1
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -480.0
+offset_top = -220.0
+mouse_filter = 2
+color = Color(0.219608, 0.839216, 1, 0.16)
 
 [node name="Center" type="CenterContainer" parent="."]
 layout_mode = 1
@@ -29,7 +50,7 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="Panel" type="PanelContainer" parent="Center"]
-custom_minimum_size = Vector2(720, 520)
+custom_minimum_size = Vector2(760, 540)
 layout_mode = 2
 
 [node name="VBox" type="VBoxContainer" parent="Center/Panel"]

@@ -23,6 +23,8 @@ public partial class GameManager : Node
 
     private void EnsureInputBindings()
     {
+        EnsureUiBindings();
+
         ResetAction("move_up");
         AddKeys("move_up", Key.Up);
         AddJoyButtons("move_up", 11);
@@ -74,7 +76,28 @@ public partial class GameManager : Node
         AddKeys("p2_action_b", Key.G);
     }
 
-    private static void ResetAction(string actionName)
+    private static void EnsureUiBindings()
+    {
+        EnsureAction("ui_up");
+        EnsureAction("ui_down");
+        EnsureAction("ui_left");
+        EnsureAction("ui_right");
+        EnsureAction("ui_accept");
+        EnsureAction("ui_cancel");
+
+        EnsureJoyButton("ui_up", 11);
+        EnsureJoyAxis("ui_up", 1, -1f);
+        EnsureJoyButton("ui_down", 12);
+        EnsureJoyAxis("ui_down", 1, 1f);
+        EnsureJoyButton("ui_left", 13);
+        EnsureJoyAxis("ui_left", 0, -1f);
+        EnsureJoyButton("ui_right", 14);
+        EnsureJoyAxis("ui_right", 0, 1f);
+        EnsureJoyButton("ui_accept", 0);
+        EnsureJoyButton("ui_cancel", 1);
+    }
+
+    private static void EnsureAction(string actionName)
     {
         if (!InputMap.HasAction(actionName))
         {
@@ -82,6 +105,11 @@ public partial class GameManager : Node
         }
 
         InputMap.ActionSetDeadzone(actionName, MoveDeadzone);
+    }
+
+    private static void ResetAction(string actionName)
+    {
+        EnsureAction(actionName);
 
         foreach (var existing in InputMap.ActionGetEvents(actionName))
         {
@@ -122,6 +150,33 @@ public partial class GameManager : Node
             AxisValue = direction
         };
         InputMap.ActionAddEvent(actionName, inputEvent);
+    }
+
+    private static void EnsureJoyButton(string actionName, int button)
+    {
+        var inputEvent = new InputEventJoypadButton
+        {
+            ButtonIndex = (JoyButton)button
+        };
+
+        if (!InputMap.ActionHasEvent(actionName, inputEvent))
+        {
+            InputMap.ActionAddEvent(actionName, inputEvent);
+        }
+    }
+
+    private static void EnsureJoyAxis(string actionName, int axis, float direction)
+    {
+        var inputEvent = new InputEventJoypadMotion
+        {
+            Axis = (JoyAxis)axis,
+            AxisValue = direction
+        };
+
+        if (!InputMap.ActionHasEvent(actionName, inputEvent))
+        {
+            InputMap.ActionAddEvent(actionName, inputEvent);
+        }
     }
 
     private void ClearCurrentScreen()
