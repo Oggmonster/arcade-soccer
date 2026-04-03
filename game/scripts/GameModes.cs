@@ -187,10 +187,9 @@ public static class NationalTeamDatabase
         return new[]
         {
             leftWing,
-            leftMid,
-            ChooseCenterMid(leftMid, rightMid),
-            rightMid,
             rightWing,
+            leftMid,
+            rightMid,
             ChooseSupportStriker(striker, leftWing, rightWing),
             striker
         };

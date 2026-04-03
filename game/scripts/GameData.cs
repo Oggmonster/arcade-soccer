@@ -139,15 +139,15 @@ public sealed class MatchSummary
 
 public static class PocketPitchConfig
 {
-    public const int OutfieldPlayerCount = 7;
-    public const int SupportStrikerSlot = 5;
-    public const int StrikerSlot = 6;
-    public const float FieldWidth = 1500f;
-    public const float FieldHeight = 1920f;
+    public const int OutfieldPlayerCount = 6;
+    public const int SupportStrikerSlot = 4;
+    public const int StrikerSlot = 5;
+    public const float FieldWidth = 1600f;
+    public const float FieldHeight = 2050f;
     public const float GoalWidth = 220f;
     public const float GoalDepth = 60f;
-    public const float PenaltyBoxWidth = 580f;
-    public const float PenaltyBoxDepth = 250f;
+    public const float PenaltyBoxWidth = 620f;
+    public const float PenaltyBoxDepth = 270f;
     public const float MatchLengthSeconds = 120f;
     public const float GoalFreezeSeconds = 0.9f;
     public const float KickoffDelaySeconds = 0.8f;
@@ -158,35 +158,32 @@ public static class PocketPitchConfig
 
     public static readonly Vector2[] HomeAnchors =
     {
-        new(-500f, 560f),
-        new(-250f, 350f),
-        new(0f, 450f),
-        new(250f, 350f),
-        new(500f, 560f),
-        new(-130f, 150f),
-        new(130f, 50f)
+        new(-300f, 610f),
+        new(300f, 610f),
+        new(-240f, 210f),
+        new(240f, 210f),
+        new(-180f, -120f),
+        new(180f, -120f)
     };
 
     public static readonly Vector2[] AwayAnchors =
     {
-        new(-500f, -560f),
-        new(-250f, -350f),
-        new(0f, -450f),
-        new(250f, -350f),
-        new(500f, -560f),
-        new(-130f, -150f),
-        new(130f, -50f)
+        new(-300f, -610f),
+        new(300f, -610f),
+        new(-240f, -210f),
+        new(240f, -210f),
+        new(-180f, 120f),
+        new(180f, 120f)
     };
 
     public static readonly string[] SquadSlots =
     {
-        "Left Wing",
+        "Left Back",
+        "Right Back",
         "Left Mid",
-        "Center Mid",
         "Right Mid",
-        "Right Wing",
-        "Support Striker",
-        "Striker"
+        "Left Forward",
+        "Right Forward"
     };
 
     public static readonly TeamDefinition DefaultHomeTeam = new(
@@ -199,9 +196,8 @@ public static class PocketPitchConfig
             PlayerRole.Medium,
             PlayerRole.Big,
             PlayerRole.Medium,
-            PlayerRole.Small,
-            PlayerRole.Medium,
-            PlayerRole.Big
+            PlayerRole.Big,
+            PlayerRole.Small
         });
 
     public static readonly TeamDefinition[] AwayPresets =
@@ -216,9 +212,8 @@ public static class PocketPitchConfig
                 PlayerRole.Medium,
                 PlayerRole.Medium,
                 PlayerRole.Small,
-                PlayerRole.Small,
-                PlayerRole.Medium,
-                PlayerRole.Big
+                PlayerRole.Big,
+                PlayerRole.Small
             }),
         new(
             "Evergreen Athletic",
@@ -230,9 +225,8 @@ public static class PocketPitchConfig
                 PlayerRole.Small,
                 PlayerRole.Medium,
                 PlayerRole.Small,
-                PlayerRole.Big,
-                PlayerRole.Small,
-                PlayerRole.Medium
+                PlayerRole.Medium,
+                PlayerRole.Big
             }),
         new(
             "Metro Meteors",
@@ -244,9 +238,8 @@ public static class PocketPitchConfig
                 PlayerRole.Big,
                 PlayerRole.Medium,
                 PlayerRole.Medium,
-                PlayerRole.Small,
-                PlayerRole.Medium,
-                PlayerRole.Big
+                PlayerRole.Big,
+                PlayerRole.Small
             })
     };
 

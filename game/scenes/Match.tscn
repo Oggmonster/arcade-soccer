@@ -20,7 +20,7 @@ script = ExtResource("2_field")
 [node name="Camera2D" type="Camera2D" parent="."]
 position_smoothing_enabled = true
 position_smoothing_speed = 6.0
-zoom = Vector2(0.68, 0.68)
+zoom = Vector2(0.62, 0.62)
 enabled = true
 
 [node name="HUD" parent="." instance=ExtResource("4_hud")]

@@ -1086,11 +1086,14 @@ public partial class MatchManager : Node2D
         var attackSign = player.TeamSide == TeamSide.Home ? -1f : 1f;
         var possessionPush = TeamInPossession(player.TeamSide) ? 1f : 0f;
         var roleWidth = GetSlotWidthBias(player.SlotIndex);
-        var roleDepth = GetSlotDepthBias(player.SlotIndex);
+        var lineAdvance = GetSlotAttackAdvance(player.SlotIndex);
+        var progress = Mathf.Clamp(TeamProgressValue(reference, player.TeamSide), -240f, 640f);
+        var horizontalFollow = GetSlotHorizontalFollow(player.SlotIndex) + (0.08f * possessionPush);
+        var targetWidth = Mathf.Clamp((roleWidth * 0.92f) + (reference.X * 0.34f), -PocketPitchConfig.FieldWidth * 0.40f, PocketPitchConfig.FieldWidth * 0.40f);
         var target = new Vector2(
-            Mathf.Clamp((anchor.X * 0.42f) + (reference.X * 0.58f) + (roleWidth * 0.52f), -PocketPitchConfig.FieldWidth * 0.44f, PocketPitchConfig.FieldWidth * 0.44f),
+            Mathf.Lerp(anchor.X, targetWidth, horizontalFollow),
             Mathf.Clamp(
-                Mathf.Lerp(anchor.Y, reference.Y + (attackSign * roleDepth), 0.54f + (0.16f * possessionPush)),
+                anchor.Y + (attackSign * progress * lineAdvance),
                 -PocketPitchConfig.FieldHeight * 0.46f,
                 PocketPitchConfig.FieldHeight * 0.46f));
 
@@ -1110,20 +1113,15 @@ public partial class MatchManager : Node2D
     {
         var anchor = player.SpawnAnchor;
         var goal = PocketPitchConfig.GoalCenter(player.TeamSide);
-        var ballPressurePoint = _ball!.GlobalPosition.Lerp(goal, 0.44f);
-        var carrier = _ball.Carrier as PlayerController;
-        var sameSideAsBallCarrier = carrier != null && carrier.TeamSide == player.TeamSide;
-        if (sameSideAsBallCarrier)
-        {
-            ballPressurePoint = ballPressurePoint.Lerp(anchor, 0.2f);
-        }
-
+        var ballPressurePoint = _ball!.GlobalPosition.Lerp(goal, 0.28f);
+        var roleWidth = GetSlotWidthBias(player.SlotIndex);
+        var lineDrop = GetSlotDefenseCompression(player.SlotIndex);
         var centralBias = new Vector2(
-            Mathf.Lerp(anchor.X, 0f, 0.26f),
-            Mathf.Lerp(anchor.Y, ballPressurePoint.Y, 0.68f));
+            Mathf.Lerp(roleWidth, _ball.GlobalPosition.X * 0.26f, 0.24f),
+            Mathf.Lerp(anchor.Y, ballPressurePoint.Y, lineDrop));
         return new Vector2(
-            Mathf.Lerp(centralBias.X, ballPressurePoint.X, 0.60f),
-            centralBias.Y);
+            Mathf.Clamp(centralBias.X, -PocketPitchConfig.FieldWidth * 0.38f, PocketPitchConfig.FieldWidth * 0.38f),
+            Mathf.Clamp(centralBias.Y, -PocketPitchConfig.FieldHeight * 0.44f, PocketPitchConfig.FieldHeight * 0.44f));
     }
 
     private Vector2 GetGoalkeeperRespectTarget(TeamSide keeperSide, PlayerController player)
@@ -1150,7 +1148,7 @@ public partial class MatchManager : Node2D
 
     private bool ShouldAiPass(PlayerController player, float distanceToGoal, bool shootingLaneClear, float pressure, int supportRunnerAhead)
     {
-        var blockedShot = distanceToGoal > 250f && !shootingLaneClear;
+        var blockedShot = distanceToGoal > 310f && !shootingLaneClear;
         var underPressure = pressure > 0.62f;
         var isolated = supportRunnerAhead == 0 && distanceToGoal > 220f;
         if (underPressure && distanceToGoal > 165f)
@@ -1168,7 +1166,7 @@ public partial class MatchManager : Node2D
             return false;
         }
 
-        return pressure > 0.48f && _rng.Randf() > 0.94f;
+        return pressure > 0.58f && _rng.Randf() > 0.97f;
     }
 
     private bool ShouldAiShoot(PlayerController player, float shotDistance, bool shootingLaneClear, float pressure)
@@ -1180,27 +1178,29 @@ public partial class MatchManager : Node2D
 
         if (player.Role == PlayerRole.Big)
         {
-            return shotDistance < 420f || (shotDistance < 540f && pressure > 0.18f && _rng.Randf() > 0.36f);
+            return shotDistance < 470f || (shotDistance < 600f && pressure > 0.14f && _rng.Randf() > 0.28f);
         }
 
         if (player.Role == PlayerRole.Medium)
         {
-            return shotDistance < 300f || (shotDistance < 390f && pressure > 0.42f && _rng.Randf() > 0.62f);
+            return shotDistance < 340f || (shotDistance < 440f && pressure > 0.34f && _rng.Randf() > 0.54f);
         }
 
-        return shotDistance < 235f || (shotDistance < 300f && pressure > 0.62f && _rng.Randf() > 0.72f);
+        return shotDistance < 250f || (shotDistance < 325f && pressure > 0.56f && _rng.Randf() > 0.66f);
     }
 
     private Vector2 GetAiDribbleTarget(PlayerController player, Vector2 attackGoal, float pressure)
     {
         var attackSign = player.TeamSide == TeamSide.Home ? -1f : 1f;
-        var widthBias = GetSlotWidthBias(player.SlotIndex) * 0.55f;
+        var widthBias = GetSlotWidthBias(player.SlotIndex) * 0.48f;
+        var inwardBias = -Mathf.Sign(player.GlobalPosition.X) * 180f;
         var candidates = new[]
         {
-            attackGoal + new Vector2(widthBias, attackSign * 90f),
-            player.GlobalPosition + new Vector2(widthBias - 180f, attackSign * 150f),
-            player.GlobalPosition + new Vector2(widthBias * 0.4f, attackSign * 195f),
-            player.GlobalPosition + new Vector2(widthBias + 180f, attackSign * 150f)
+            attackGoal + new Vector2(widthBias * 0.55f, attackSign * 130f),
+            player.GlobalPosition + new Vector2(inwardBias, attackSign * 165f),
+            player.GlobalPosition + new Vector2(widthBias * 0.25f, attackSign * 205f),
+            player.GlobalPosition + new Vector2(widthBias, attackSign * 125f),
+            player.GlobalPosition + new Vector2(inwardBias * 0.55f, attackSign * 110f)
         };
 
         var best = candidates[0];
@@ -1213,8 +1213,14 @@ public partial class MatchManager : Node2D
             var laneBonus = HasOpenLane(player.GlobalPosition, clampedCandidate, player.TeamSide, 58f) ? 140f : -120f;
             var progressBonus = TeamProgressValue(clampedCandidate, player.TeamSide) * 0.18f;
             var crowdPenalty = GetOpponentCrowding(clampedCandidate, player.TeamSide, 125f) * 120f;
-            var widthBonus = Mathf.Abs(clampedCandidate.X) * (pressure > 0.45f ? 0.11f : 0.05f);
-            var score = laneBonus + progressBonus + widthBonus - crowdPenalty;
+            var widthBonus = Mathf.Abs(clampedCandidate.X) * (pressure > 0.45f ? 0.07f : 0.03f);
+            var touchlineDistance = (PocketPitchConfig.FieldWidth * 0.5f) - Mathf.Abs(clampedCandidate.X);
+            var touchlinePenalty = Mathf.Max(0f, 165f - touchlineDistance) * 1.9f;
+            var endlineDistance = player.TeamSide == TeamSide.Home
+                ? clampedCandidate.Y - PocketPitchConfig.FieldRect.Position.Y
+                : PocketPitchConfig.FieldRect.End.Y - clampedCandidate.Y;
+            var cornerPenalty = Mathf.Max(0f, 180f - touchlineDistance) + Mathf.Max(0f, 220f - endlineDistance);
+            var score = laneBonus + progressBonus + widthBonus - crowdPenalty - touchlinePenalty - (cornerPenalty * 1.25f);
             if (score > bestScore)
             {
                 bestScore = score;
@@ -1293,27 +1299,46 @@ public partial class MatchManager : Node2D
     {
         return slotIndex switch
         {
-            0 => -230f,
-            1 => -120f,
-            2 => 0f,
-            3 => 120f,
-            4 => 230f,
-            5 => -70f,
-            6 => 70f,
+            0 => -260f,
+            1 => 260f,
+            2 => -210f,
+            3 => 210f,
+            4 => -165f,
+            5 => 165f,
             _ => 0f
         };
     }
 
-    private static float GetSlotDepthBias(int slotIndex)
+    private static float GetSlotAttackAdvance(int slotIndex)
     {
         return slotIndex switch
         {
-            0 or 4 => 190f,
-            1 or 3 => 140f,
-            2 => 120f,
-            5 => 255f,
-            6 => 290f,
-            _ => 180f
+            0 or 1 => 0.28f,
+            2 or 3 => 0.54f,
+            4 or 5 => 0.88f,
+            _ => 0.5f
+        };
+    }
+
+    private static float GetSlotDefenseCompression(int slotIndex)
+    {
+        return slotIndex switch
+        {
+            0 or 1 => 0.24f,
+            2 or 3 => 0.42f,
+            4 or 5 => 0.34f,
+            _ => 0.35f
+        };
+    }
+
+    private static float GetSlotHorizontalFollow(int slotIndex)
+    {
+        return slotIndex switch
+        {
+            0 or 1 => 0.10f,
+            2 or 3 => 0.18f,
+            4 or 5 => 0.24f,
+            _ => 0.16f
         };
     }
 
